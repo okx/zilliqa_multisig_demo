@@ -1,5 +1,5 @@
 # Overview 
-This demo showcases how to utilize the Zilliqa official [multisig contract](https://github.com/Zilliqa/zilliqa-developer/blob/main/contracts/reward_control/contracts/scilla/msw_rewards_param.scilla) to transfer Zilliqa's native tokens, ZIL. In particular, the transfer must be signed by two parties. And the contract is written in Zilliqa-native language, [Scilla](https://scilla.readthedocs.io/en/latest/scilla-in-depth.html). The demo is written in Javascript using [Hardhat](https://hardhat.org/) framework. It runs on the Zilliqa official [testnet](https://dev-api.zilliqa.com). 
+This demo showcases how to utilize the Zilliqa official [multisig contract](https://github.com/Zilliqa/zilliqa-developer/blob/main/products/multisig/src/smartcontract/multisig_wallet_with_zrc2.scilla.js) to transfer Zilliqa's native tokens, ZIL. In particular, the transfer must be signed by two parties. And the contract is written in Zilliqa-native language, [Scilla](https://scilla.readthedocs.io/en/latest/scilla-in-depth.html). The demo is written in Javascript using [Hardhat](https://hardhat.org/) framework. It runs on the Zilliqa official [testnet](https://dev-api.zilliqa.com). 
 
 
 # Setup
@@ -43,11 +43,36 @@ MultiSig address is 0xe8D1600826B1D7ce2a5E8fa85184072c14482F75
 NOTE: copy the above address as the value of MULTISIG_CONTRACT_ADDRESS var in [test/TestInteractMultiSigContract.ts](test/TestInteractMultiSigContract.ts) for later interactions with the contract. The current value is my pre-deployed contract. 
 
 # Transfer from Addr0 to Contract
+```
+# This process takes time, i.e., > 10 minutes. WHY??
+
+$ npx hardhat test test/TestInteractMultiSigContract.ts --grep TestTransferFromAcc0ToMultiSigContract
+
+Connecting to Zilliqa on https://dev-api.zilliqa.com, chainId 333
+Setting default wallet for signing to: 0x381f4008505e940AD7681EC3468a719060caF796
+Current Minimum Gas Price: 2000000000
+My Gas Price 20000000000
+Is the gas price sufficient? true
+Start to create txn
+```
 
 # Check Contract Balance
 ```
-$ 
+$ npx hardhat test test/TestInteractMultiSigContract.ts --grep TestGetMultiSigContractBalance
+
+  TestGetMultiSigContractBalance
+Connecting to Zilliqa on https://dev-api.zilliqa.com, chainId 333
+Setting default wallet for signing to: 0x381f4008505e940AD7681EC3468a719060caF796
+Contract balance: 1000000000000
+    ✔ Contract shall have enough balances.  (181ms)
+
+  1 passing (213ms)
 ```
+
+# Submit Multisig Transaction to Contract
+The recipient of transaction is Addr 3. 
+
+
 
 The demo is comprised of the following steps: 
 * Account Preparation 

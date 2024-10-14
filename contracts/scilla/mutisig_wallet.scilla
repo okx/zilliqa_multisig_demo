@@ -1,4 +1,3 @@
-(* SPDX-License-Identifier: GPL-3.0 *)
 scilla_version 0
 
 (***************************************************)
@@ -15,46 +14,44 @@ let one_msg =
 
 (* --- gen start --- *)
 type MultiSigTransition = 
-  | UpdateAdmin of (ByStr20)
-  | ClaimAdmin
-  | ChangeBaseReward of (Uint32)
-  | ChangeLookupReward of (Uint32)
-  | ChangeNodeReward of (Uint32)
-  | ChangeCoinbaseReward of (Uint128)
-  | ChangeRewardEachMulInMillis of (Uint32)
-  | ChangeBaseRewardMulInMillis of (Uint32)
+  | Mint of (ByStr20) (Uint128)
+  | Burn of (ByStr20) (Uint128)
+  | IncreaseAllowance of (ByStr20) (Uint128)
+  | DecreaseAllowance of (ByStr20) (Uint128)
+  | Transfer of (ByStr20) (Uint128)
+  | TransferFrom of (ByStr20) (ByStr20) (Uint128)
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
-  | UpdateAdmin admin => {
-      admin: admin;
-      _tag: "UpdateAdmin"; _amount: Uint128 0; _recipient: r
+  | Mint recipient amount => {
+      recipient: recipient;
+      amount: amount;
+      _tag: "Mint"; _amount: Uint128 0; _recipient: r
     }
-  | ClaimAdmin => {
-      _tag: "ClaimAdmin"; _amount: Uint128 0; _recipient: r
+  | Burn burn_account amount => {
+      burn_account: burn_account;
+      amount: amount;
+      _tag: "Burn"; _amount: Uint128 0; _recipient: r
     }
-  | ChangeBaseReward base_reward_val => {
-      base_reward_val: base_reward_val;
-      _tag: "ChangeBaseReward"; _amount: Uint128 0; _recipient: r
+  | IncreaseAllowance spender amount => {
+      spender: spender;
+      amount: amount;
+      _tag: "IncreaseAllowance"; _amount: Uint128 0; _recipient: r
     }
-  | ChangeLookupReward lookup_reward_val => {
-      lookup_reward_val: lookup_reward_val;
-      _tag: "ChangeLookupReward"; _amount: Uint128 0; _recipient: r
+  | DecreaseAllowance spender amount => {
+      spender: spender;
+      amount: amount;
+      _tag: "DecreaseAllowance"; _amount: Uint128 0; _recipient: r
     }
-  | ChangeNodeReward node_reward_val => {
-      node_reward_val: node_reward_val;
-      _tag: "ChangeNodeReward"; _amount: Uint128 0; _recipient: r
+  | Transfer to amount => {
+      to: to;
+      amount: amount;
+      _tag: "Transfer"; _amount: Uint128 0; _recipient: r
     }
-  | ChangeCoinbaseReward coinbase_reward_val => {
-      coinbase_reward_val: coinbase_reward_val;
-      _tag: "ChangeCoinbaseReward"; _amount: Uint128 0; _recipient: r
-    }
-  | ChangeRewardEachMulInMillis reward_in_millis => {
-      reward_in_millis: reward_in_millis;
-      _tag: "ChangeRewardEachMulInMillis"; _amount: Uint128 0; _recipient: r
-    }
-  | ChangeBaseRewardMulInMillis reward_in_millis => {
-      reward_in_millis: reward_in_millis;
-      _tag: "ChangeBaseRewardMulInMillis"; _amount: Uint128 0; _recipient: r
+  | TransferFrom from to amount => {
+      from: from;
+      to: to;
+      amount: amount;
+      _tag: "TransferFrom"; _amount: Uint128 0; _recipient: r
     }
   end in one_msg msg
 (* --- gen end --- *)
@@ -111,15 +108,16 @@ let make_owners_map =
 
 contract MultiSigWallet
 (
-  owner_list: List ByStr20,
-  num_of_required_signatures: Uint32
+  owners_list: List ByStr20,
+  required_signatures: Uint32,
+  contract_version: String
 )
 with
   let len = @list_length ByStr20 in
-  let no_of_owners = len owner_list in
+  let no_of_owners = len owners_list in
   let owners_ok = builtin lt zero_uint32 no_of_owners in
-  let required_sigs_not_too_low = builtin lt zero_uint32 num_of_required_signatures in
-  let required_sigs_too_high = builtin lt no_of_owners num_of_required_signatures in
+  let required_sigs_not_too_low = builtin lt zero_uint32 required_signatures in
+  let required_sigs_too_high = builtin lt no_of_owners required_signatures in
   let required_sigs_not_too_high = negb required_sigs_too_high in
   let required_sigs_ok = andb required_sigs_not_too_high required_sigs_not_too_low in
   let all_ok = andb required_sigs_ok owners_ok in
@@ -127,7 +125,7 @@ with
   (* everything else has been checked *)
   match all_ok with
   | True =>
-    let owners_map = make_owners_map owner_list in
+    let owners_map = make_owners_map owners_list in
     let size_of_owners_map = builtin size owners_map in
     builtin eq size_of_owners_map no_of_owners
   | False =>
@@ -135,7 +133,7 @@ with
   end
 =>
 
-field owners: Map ByStr20 Bool = make_owners_map owner_list
+field owners: Map ByStr20 Bool = make_owners_map owners_list
 
 field transaction_count: Uint32 = Uint32 0
 
@@ -254,12 +252,12 @@ transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: Str
   end
 end
 
-procedure SubmitCustomTransaction(contract_address: ByStr20, transaction: MultiSigTransition)
+transition SubmitCustomTransaction(contract_address: ByStr20, transaction: MultiSigTransition)
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
-transition SignTransaction(transaction_id: Uint32)
+transition SignTransaction(transactionId: Uint32)
   (* Only owners are allowed to sign off transactions *)
   is_owner <- exists owners[_sender];
   match is_owner with
@@ -268,25 +266,25 @@ transition SignTransaction(transaction_id: Uint32)
     Throw err
   | True =>
     (* Transaction must have been submitted *)
-    has_transaction <- exists transactions[transaction_id];
+    has_transaction <- exists transactions[transactionId];
     match has_transaction with
     | False =>
       err = TransactionNotFoundError;
       Throw err
     | True =>
-      AddSignature transaction_id _sender
+      AddSignature transactionId _sender
     end
   end
 end
 
-transition RevokeSignature(transaction_id: Uint32)
-  has_sig <- exists signatures[transaction_id][_sender];
+transition RevokeSignature(transactionId: Uint32)
+  has_sig <- exists signatures[transactionId][_sender];
   match has_sig with
   | False =>
     err = SigNotFoundError;
     Throw err
   | True =>
-    maybe_count <- signature_counts[transaction_id];
+    maybe_count <- signature_counts[transactionId];
     match maybe_count with
     | None =>
       err = InconsistentSigCountError;
@@ -299,32 +297,32 @@ transition RevokeSignature(transaction_id: Uint32)
         Throw err
       | False =>
         new_count = builtin sub count one_uint32;
-        signature_counts[transaction_id] := new_count;
+        signature_counts[transactionId] := new_count;
         
-        delete signatures[transaction_id][_sender];
+        delete signatures[transactionId][_sender];
 
-        e = { _eventname: "RevokeSignature"; transaction_id: transaction_id };
+        e = { _eventname: "RevokeSignature"; transactionId: transactionId };
         event e
       end
     end
   end
 end
 
-transition ExecuteTransaction(transaction_id: Uint32)
-  maybe_transaction <- transactions[transaction_id];
+transition ExecuteTransaction(transactionId: Uint32)
+  maybe_transaction <- transactions[transactionId];
   match maybe_transaction with
   | None =>
     err = TransactionNotFoundError;
     Throw err
   | Some transaction =>
-    maybe_sig_count <- signature_counts[transaction_id];
+    maybe_sig_count <- signature_counts[transactionId];
     match maybe_sig_count with
     | None =>
       (* Signature count not found, even though the transaction exists. *)
       err = InconsistentSigCountError;
       Throw err
     | Some sig_count =>
-      not_enough_signatures = builtin lt sig_count num_of_required_signatures;
+      not_enough_signatures = builtin lt sig_count required_signatures;
       match not_enough_signatures with
       | True =>
         err = NotEnoughSigCountError;
@@ -339,67 +337,56 @@ transition ExecuteTransaction(transaction_id: Uint32)
         (* Remove transaction and signatures. *)
         (* Note: The transaction may have failed, but without a callback *)
         (* we have no way of detecting whether it did *)
-        DeleteTransaction transaction_id
+        DeleteTransaction transactionId
       end
     end
   end
 end
 
-(***************************************************)
-(*      Multisig Housekeeping Transitions          *)
-(***************************************************)
-
-(* Submit a new UpdateAdmin request *)
-transition SubmitCustomUpdateAdminTransaction (calleeContract : ByStr20, admin: ByStr20)
-  transaction = UpdateAdmin admin;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ClaimAdmin request *)
-transition SubmitCustomClaimAdminTransaction (calleeContract : ByStr20)
-  transaction = ClaimAdmin;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeBaseReward request *)
-transition SubmitCustomChangeBaseRewardTransaction (calleeContract : ByStr20, base_reward_val: Uint32)
-  transaction = ChangeBaseReward base_reward_val;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeLookupReward request *)
-transition SubmitCustomChangeLookupRewardTransaction (calleeContract : ByStr20, lookup_reward_val: Uint32)
-  transaction = ChangeLookupReward lookup_reward_val;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeNodeReward request *)
-transition SubmitCustomChangeNodeRewardTransaction (calleeContract : ByStr20, node_reward_val: Uint32)
-  transaction = ChangeNodeReward node_reward_val;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeCoinbaseReward request *)
-transition SubmitCustomChangeCoinbaseRewardTransaction (calleeContract : ByStr20, coinbase_reward_val: Uint128)
-  transaction = ChangeCoinbaseReward coinbase_reward_val;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeRewardEachMulInMillis request *)
-transition SubmitCustomChangeRewardEachMulInMillisTransaction (calleeContract: ByStr20, reward_in_millis: Uint32)
-  transaction = ChangeRewardEachMulInMillis reward_in_millis;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-(* Submit a new ChangeBaseRewardInMillis request *)
-transition SubmitCustomChangeBaseRewardMulInMillisTransaction (calleeContract: ByStr20, reward_in_millis: Uint32)
-  transaction = ChangeBaseRewardMulInMillis reward_in_millis;
-  SubmitCustomTransaction calleeContract transaction
-end
-
-
 transition AddFunds()
   accept;
   e = { _eventname: "AddFunds"; sender: _sender; amount: _amount };
   event e
+end
+
+transition RecipientAcceptTransfer(
+  sender : ByStr20, 
+  recipient : ByStr20, 
+  amount : Uint128)
+end
+
+transition TransferSuccessCallBack(
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
+
+transition TransferFromSuccessCallBack(
+  initiator : ByStr20,
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
+
+transition RecipientAcceptMint(
+  minter : ByStr20,
+  recipient: ByStr20,
+  amount: Uint128
+)
+end
+
+transition MintSuccessCallBack(
+  minter : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
+
+transition BurnSuccessCallBack(
+  burner : ByStr20,
+  burn_account: ByStr20,
+  amount: Uint128
+)
 end

@@ -28,7 +28,8 @@ describe("TestDeployMultiSigContract", function () {
 		let multiSigWalletContract = await hre.deployScillaContract(
 		  "MultiSigWallet",
 		  owner_list,
-		  num_of_required_signatures
+		  num_of_required_signatures, 
+		  "1.0"
 		);
 
 		utils.checkScillaTransactionSuccess(multiSigWalletContract);
