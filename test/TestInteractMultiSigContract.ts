@@ -4,6 +4,8 @@ import hre from "hardhat";
 import * as utils from "../utils/utils.ts";
 import { initZilliqa, Setup as ZilliqaSetup } from "hardhat-scilla-plugin";
 const { BN, Long, bytes, units } = require("@zilliqa-js/util");
+import { ScillaContract } from "hardhat-scilla-plugin";
+import { Contract } from "ethers";
 
 let WALLET_INDEX_0 = 0;
 let WALLET_INDEX_1 = 1;
@@ -33,7 +35,6 @@ describe.only("TestTransferFromAcc0ToMultiSigContract", function () {
 		let setup = utils.ensureZilliqa();
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
 
-		let amount_str = "1";
 		const minGasPrice = await setup.zilliqa.blockchain.getMinimumGasPrice();
 		console.log(`Current Minimum Gas Price: ${minGasPrice.result}`);
 		const myGasPrice = units.toQa("20000", units.Units.Li); // Gas Price that will be used by all transactions
@@ -97,7 +98,7 @@ describe.only("TestTransferFromAcc0ToMultiSigContract", function () {
 				params: []
 				})
 			  },
-			  true,
+			  false,
 			)
 		  );
 	  
@@ -125,15 +126,200 @@ describe.only("TestTransferFromAcc0ToMultiSigContract", function () {
 	});
 });
 
-describe.only("SubmitMultiSigTxnFromAcc0", function () {
-    let acc_0 =
-      utils.getZilliqaAccountForAccountByHardhatWallet(WALLET_INDEX_0);
 
-    let result = await scillaMultiSigRewardsParamContract
-      .connect(acc_0)
-      .SubmitCustomChangeLookupRewardTransaction(rewardsContractAddress, 35);
-    const multisig_txn_id = result.receipt.event_logs[0].params[0].value;
-    if (DEBUG) {
-      console.log("Multisig txn id is: ", multisig_txn_id);
-    }
+
+describe.only("TestMultiSigTxnToAcc2", function () {
+	var multisig_txn_id = "4";
+	const transfer_qa_amount = '5000';
+	var before_acc2_bal;
+	var setup = utils.ensureZilliqa();
+	let tx_params = {};
+	var multisig_contract : Contract;
+
+	before(async function () {
+		multisig_contract = setup.zilliqa.contracts.at(MULTISIG_CONTRACT_ADDRESS);
+		expect(multisig_contract.isDeployed()).to.true;
+
+		tx_params = 
+			{
+				version: setup.version,
+				amount: new BN(0),
+				gasPrice: units.toQa("20000", units.Units.Li), 
+				gasLimit: Long.fromNumber(8000),
+			};
+
+		let acc2 =
+		  utils.getZilliqaAccountForAccountByHardhatWallet(WALLET_INDEX_2);
+		before_acc2_bal = (await hre.zilliqa.getBalanceForAddress(acc2.address))[0];	
+		expect(before_acc2_bal).to.be.greaterThan(0);
+		console.log(`Before Transfer Acc2 Balance: ${before_acc2_bal}`);
+	});
+
+	it("The submission from Acc0 shall succeed. ", async function () {
+		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
+		let acc_2 =
+		utils.getZilliqaAccountForAccountByHardhatWallet(WALLET_INDEX_2);
+
+		if (DEBUG) {
+			console.log(`Start to submit a mutlisig transfer txn to Acc2 ${acc_2.address} with amount ${transfer_qa_amount} Qa`);	
+		}
+		const tx: any = await multisig_contract.call(
+			"SubmitNativeTransaction",
+			[
+				{
+				  vname: 'recipient',
+				  type: 'ByStr20',
+				  value: acc_2.address,
+				},
+				{
+				  vname: 'amount',
+				  type: 'Uint128',
+				  value: transfer_qa_amount,
+				},
+				{
+				  vname: 'tag',
+				  type: 'String',
+				  value: '',
+				},
+			],
+			tx_params, 
+		  );
+		
+		expect(tx.receipt.success).to.be.true;
+		multisig_txn_id = tx.receipt.event_logs[0].params[0].value;
+
+		if (DEBUG) {
+			console.log(`Successfully submit the transaction ${tx.id} and get id ${multisig_txn_id} from contract, txn receipt ${JSON.stringify(tx.receipt)}`);
+			// console.log(JSON.stringify(tx));
+		}
+	});
+
+	it("The execution from Acc0 shall fail. ", async function () {
+		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
+
+		if (DEBUG) {
+			console.log(`Start to execute a mutlisig transfer txn with id ${multisig_txn_id}`);	
+		}
+
+		const tx: any = await multisig_contract.call(
+			"ExecuteTransaction",
+			[
+				{
+				  vname: 'transactionId',
+				  type: 'Uint32',
+				  value: multisig_txn_id,
+				},
+			],
+			tx_params, 
+		  );
+		
+		expect(tx.receipt.success).to.be.false;
+
+		if (DEBUG) {
+			console.log(`Fail to execute the multisig tx id ${multisig_txn_id} as not enough signatures, txn receipt ${JSON.stringify(tx.receipt)}`);
+		}
+	});
+
+	it("The signing from Acc2 shall fail. ", async function () {
+		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_2);
+		let multisig_contract = setup.zilliqa.contracts.at(MULTISIG_CONTRACT_ADDRESS);
+		expect(multisig_contract.isDeployed()).to.true;
+		const myGasPrice = units.toQa("20000", units.Units.Li);
+
+		let tx_params = 
+			{
+				version: setup.version,
+				amount: new BN(0),
+				gasPrice: myGasPrice, 
+				gasLimit: Long.fromNumber(8000),
+			};
+
+		if (DEBUG) {
+			console.log(`Start to sign a mutlisig transfer txn with id ${multisig_txn_id} from Acc2`);	
+		}
+
+		const tx: any = await multisig_contract.call(
+			"SignTransaction",
+			[
+				{
+				  vname: 'transactionId',
+				  type: 'Uint32',
+				  value: multisig_txn_id,
+				},
+			],
+			tx_params, 
+		  );
+		
+		expect(tx.receipt.success).to.be.false;
+
+		if (DEBUG) {
+			console.log(`Fail to sign the multisig tx id ${multisig_txn_id} from Acc2, as not the admin of the contract, txn receipt ${JSON.stringify(tx.receipt)}`);
+		}
+	});
+
+	it("The signing from Acc1 shall succeed. ", async function () {
+		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_1);
+		if (DEBUG) {
+			console.log(`Start to sign a mutlisig transfer txn with id ${multisig_txn_id} from Acc1`);	
+		}
+
+		const tx: any = await multisig_contract.call(
+			"SignTransaction",
+			[
+				{
+				  vname: 'transactionId',
+				  type: 'Uint32',
+				  value: multisig_txn_id,
+				},
+			],
+			tx_params, 
+		  );
+		
+		expect(tx.receipt.success).to.be.true;
+
+		if (DEBUG) {
+			console.log(`Successfully sign the multisig tx id ${multisig_txn_id} from Acc1, txn receipt ${JSON.stringify(tx.receipt)}`);
+			// console.log(JSON.stringify(tx));
+		}
+	});
+
+	it("The execution from Acc0 shall succeed. ", async function () {
+		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
+
+		if (DEBUG) {
+			console.log(`Start to execute a mutlisig transfer txn with id ${multisig_txn_id} from Acc0`);	
+		}
+
+		const tx: any = await multisig_contract.call(
+			"ExecuteTransaction",
+			[
+				{
+				  vname: 'transactionId',
+				  type: 'Uint32',
+				  value: multisig_txn_id,
+				},
+			],
+			tx_params, 
+		  );
+		
+		console.log(`Successfully execute the multisig tx id ${multisig_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
+
+		expect(tx.receipt.success, `txn receipt ${JSON.stringify(tx.receipt)}`).to.be.true;
+
+		if (DEBUG) {
+			console.log(`Successfully execute the multisig tx id ${multisig_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
+		}
+	});
+
+	it("The balance of Acc2 shall increment. ", async function () {
+		let acc_2 =
+		utils.getZilliqaAccountForAccountByHardhatWallet(WALLET_INDEX_2);
+		let after_acc2_bal = (await hre.zilliqa.getBalanceForAddress(acc_2.address))[0];
+
+		expect(after_acc2_bal).to.be.greaterThan(before_acc2_bal);
+		if (DEBUG) {
+			console.log(`After Multisig Transfer, the Acc2 Balance has increased for: ${after_acc2_bal - before_acc2_bal}`);
+		}
+	});
+
 });
