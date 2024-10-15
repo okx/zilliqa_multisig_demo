@@ -64,15 +64,20 @@ Before Transfer Contract Balance: 4999999955000, After Transfer Contract Balance
 
 # Submit A Multisig Transfer to Account 2. 
 The below test case demonstrates a transfer from the multisig contract to Account 2. The transfer is submitted by Account 0 and later signed by Account 1. 
+
+Note that the contract-generated, expected-to-return txn id can be precomputed before submitting the transfer, as we have done in the first step. 
 ```
 $ npx hardhat test test/TestInteractMultiSigContract.ts --grep TestSubmitMultiSigTransferToAcc2
 
+TestSubmitMultiSigTransferToAcc2
+Successfully get the next txn id from contract: 15
+✔ Getting the next txn id from contract shall succeed.  
 xxxx
-✔ The submission from Acc0 shall succeed.
+✔ The submission from Acc0 shall succeed, and the contract-returned txn id is as expected. 
 xxxx
-✔ The execution from Acc0 shall fail.
+✔ The execution from Acc0 shall fail, as not enough signatures. 
 xxxx
-✔ The signing from Acc2 shall fail.
+✔ The signing from Acc2 shall fail, as Acc2 not the admin of the contract. 
 xxxx
 ✔ The signing from Acc1 shall succeed.
 xxxx

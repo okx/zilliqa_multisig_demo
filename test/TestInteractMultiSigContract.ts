@@ -60,7 +60,7 @@ describe.only("TestTransferFromAcc0ToMultiSigContract", function () {
 
 
 describe.only("TestSubmitMultiSigTransferToAcc2", function () {
-	var multisig_txn_id = "4";
+	var next_txn_id = "";
 	const transfer_qa_amount = '5000';
 	var before_acc2_bal = BN;
 	var before_contract_bal = BN;
@@ -81,7 +81,15 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 			};
 	});
 
-	it("The submission from Acc0 shall succeed. ", async function () {
+	it("Getting the next txn id from contract shall succeed. ", async function () {
+		let state = await multisig_contract.getState();
+		next_txn_id = state.transaction_count;
+		if (DEBUG) {
+			console.log(`Successfully get the next txn id from contract: ${next_txn_id}`);	
+		}
+	});
+
+	it("The submission from Acc0 shall succeed, and the contract-returned txn id is as expected. ", async function () {
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
 		let acc_2 =
 		utils.getZilliqaAccountForAccountByHardhatWallet(WALLET_INDEX_2);
@@ -111,20 +119,21 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 			tx_params, 
 		  );
 		
-		expect(tx.receipt.success).to.be.true;
-		multisig_txn_id = tx.receipt.event_logs[0].params[0].value;
+		expect(tx.receipt.success, `tx receipt : ${tx.receipt}`).to.be.true;
+		let returned_txn_id = tx.receipt.event_logs[0].params[0].value;
+		expect(returned_txn_id, `the returned txn id ${returned_txn_id} is different from the expected ${next_txn_id}`).to.be.equal(next_txn_id);
 
 		if (DEBUG) {
-			console.log(`Successfully submit the transaction ${tx.id} and get id ${multisig_txn_id} from contract, txn receipt ${JSON.stringify(tx.receipt)}`);
+			console.log(`Successfully submit the transaction ${tx.id} and get id ${next_txn_id} from contract, txn receipt ${JSON.stringify(tx.receipt)}`);
 			// console.log(JSON.stringify(tx));
 		}
 	});
 
-	it("The execution from Acc0 shall fail. ", async function () {
+	it("The execution from Acc0 shall fail, as not enough signatures. ", async function () {
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
 
 		if (DEBUG) {
-			console.log(`Start to execute a mutlisig transfer txn with id ${multisig_txn_id}`);	
+			console.log(`Start to execute a mutlisig transfer txn with id ${next_txn_id}`);	
 		}
 
 		const tx: any = await multisig_contract.call(
@@ -133,7 +142,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 				{
 				  vname: 'transactionId',
 				  type: 'Uint32',
-				  value: multisig_txn_id,
+				  value: next_txn_id,
 				},
 			],
 			tx_params, 
@@ -142,11 +151,11 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 		expect(tx.receipt.success).to.be.false;
 
 		if (DEBUG) {
-			console.log(`Fail to execute the multisig tx id ${multisig_txn_id} as not enough signatures, txn receipt ${JSON.stringify(tx.receipt)}`);
+			console.log(`Fail to execute the multisig tx id ${next_txn_id} as not enough signatures, txn receipt ${JSON.stringify(tx.receipt)}`);
 		}
 	});
 
-	it("The signing from Acc2 shall fail. ", async function () {
+	it("The signing from Acc2 shall fail, as Acc2 not the admin of the contract. ", async function () {
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_2);
 		let multisig_contract = setup.zilliqa.contracts.at(MULTISIG_CONTRACT_ADDRESS);
 		expect(multisig_contract.isDeployed()).to.true;
@@ -161,7 +170,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 			};
 
 		if (DEBUG) {
-			console.log(`Start to sign a mutlisig transfer txn with id ${multisig_txn_id} from Acc2`);	
+			console.log(`Start to sign a mutlisig transfer txn with id ${next_txn_id} from Acc2`);	
 		}
 
 		const tx: any = await multisig_contract.call(
@@ -170,7 +179,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 				{
 				  vname: 'transactionId',
 				  type: 'Uint32',
-				  value: multisig_txn_id,
+				  value: next_txn_id,
 				},
 			],
 			tx_params, 
@@ -179,14 +188,14 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 		expect(tx.receipt.success).to.be.false;
 
 		if (DEBUG) {
-			console.log(`Fail to sign the multisig tx id ${multisig_txn_id} from Acc2, as not the admin of the contract, txn receipt ${JSON.stringify(tx.receipt)}`);
+			console.log(`Fail to sign the multisig tx id ${next_txn_id} from Acc2, as not the admin of the contract, txn receipt ${JSON.stringify(tx.receipt)}`);
 		}
 	});
 
 	it("The signing from Acc1 shall succeed. ", async function () {
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_1);
 		if (DEBUG) {
-			console.log(`Start to sign a mutlisig transfer txn with id ${multisig_txn_id} from Acc1`);	
+			console.log(`Start to sign a mutlisig transfer txn with id ${next_txn_id} from Acc1`);	
 		}
 
 		const tx: any = await multisig_contract.call(
@@ -195,7 +204,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 				{
 				  vname: 'transactionId',
 				  type: 'Uint32',
-				  value: multisig_txn_id,
+				  value: next_txn_id,
 				},
 			],
 			tx_params, 
@@ -204,7 +213,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 		expect(tx.receipt.success).to.be.true;
 
 		if (DEBUG) {
-			console.log(`Successfully sign the multisig tx id ${multisig_txn_id} from Acc1, txn receipt ${JSON.stringify(tx.receipt)}`);
+			console.log(`Successfully sign the multisig tx id ${next_txn_id} from Acc1, txn receipt ${JSON.stringify(tx.receipt)}`);
 			// console.log(JSON.stringify(tx));
 		}
 	});
@@ -224,7 +233,7 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 		utils.setZilliqaSignerToAccountByHardhatWallet(WALLET_INDEX_0);
 
 		if (DEBUG) {
-			console.log(`Start to execute a mutlisig transfer txn with id ${multisig_txn_id} from Acc0`);	
+			console.log(`Start to execute a mutlisig transfer txn with id ${next_txn_id} from Acc0`);	
 		}
 
 		const tx: any = await multisig_contract.call(
@@ -233,18 +242,18 @@ describe.only("TestSubmitMultiSigTransferToAcc2", function () {
 				{
 				  vname: 'transactionId',
 				  type: 'Uint32',
-				  value: multisig_txn_id,
+				  value: next_txn_id,
 				},
 			],
 			tx_params, 
 		  );
 		
-		console.log(`Successfully execute the multisig tx id ${multisig_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
+		console.log(`Successfully execute the multisig tx id ${next_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
 
 		expect(tx.receipt.success, `txn receipt ${JSON.stringify(tx.receipt)}`).to.be.true;
 
 		if (DEBUG) {
-			console.log(`Successfully execute the multisig tx id ${multisig_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
+			console.log(`Successfully execute the multisig tx id ${next_txn_id}, txn receipt ${JSON.stringify(tx.receipt)}`);
 		}
 	});
 
