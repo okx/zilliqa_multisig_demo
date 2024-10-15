@@ -36,7 +36,6 @@ describe("TestGetAccountsBalance", function () {
 			console.log(`Account 1 ${acc1.address}, Pub Key ${acc1.publicKey}, Balance: ${bal1}`);
 			console.log(`Account 2 ${acc2.address}, Pub Key ${acc2.publicKey}, Balance: ${bal2}`);
 		}
-
 	});
 
 });
