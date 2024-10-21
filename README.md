@@ -23,7 +23,7 @@ Account 2 0xB028055EA3BC78D759d10663Da40D171dec992Aa, Pub Key 0380284d18dbc1d370
 ```
 If the above accounts do not have enough balances, run the (faucet)[https://dev-wallet.zilliqa.com/faucet?network=testnet] to receive amounts. 
 
-# Deploy Multisig Contract
+# Precompute Multisig Contract and Deploy
 The admins of the contract are Account 0 and Account 1, i.e., a transfer from this contract must be signed by the both accounts. 
 
 
@@ -33,12 +33,19 @@ $ npx hardhat test test/TestDeployMultiSigContract.ts
   TestDeployMultiSigContract
 
 Connecting to Zilliqa on https://dev-api.zilliqa.com, chainId 333
+Address: 0x381f4008505e940AD7681EC3468a719060caF796, Next_Nonce: 223, Bal: 2639675999000000
+Precomputed contract address: 0x74dEB1B53F806E84b1E360268fFDFFcee3324654
+    ✔ Contract address should be percomputed with sender address and nonce.  (637ms)
 Setting default wallet for signing to: 0x381f4008505e940AD7681EC3468a719060caF796
-S 0
-XX {"cumulative_gas":486,"epoch_num":"7359890","success":true}
-E undefined
-MultiSig address is 0xe8D1600826B1D7ce2a5E8fa85184072c14482F75
 
+
+S 0
+XX {"cumulative_gas":486,"epoch_num":"7380267","success":true}
+E undefined
+Actual MultiSig address is 0x74dEB1B53F806E84b1E360268fFDFFcee3324654, expected precomputed contract addr 0x74dEB1B53F806E84b1E360268fFDFFcee3324654
+    ✔ Contract should be deployed successfully (42652ms)
+After Deploy Contract Balance: 0
+    ✔ Contract shall have zero balance.  (195ms)
 ```
 
 Then copy the above address as the value of MULTISIG_CONTRACT_ADDRESS var in [test/TestInteractMultiSigContract.ts](test/TestInteractMultiSigContract.ts) for later interactions with the contract. The current value is my pre-deployed contract. 
